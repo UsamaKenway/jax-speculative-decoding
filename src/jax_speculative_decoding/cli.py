@@ -105,6 +105,8 @@ def cmd_speculative(args: argparse.Namespace) -> int:
         output_len=args.output_len,
         max_model_len=args.max_model_len,
         prompt=args.prompt,
+        prompt_file=args.prompt_file,
+        num_samples=args.num_samples,
     )
     print_result(result)
     write_result(args.out, result)
@@ -122,6 +124,8 @@ def cmd_scaling(args: argparse.Namespace) -> int:
         output_len=args.output_len,
         max_model_len=args.max_model_len,
         prompt=args.prompt,
+        prompt_file=args.prompt_file,
+        num_samples=args.num_samples,
     )
     for result in results:
         print_result(result)
@@ -174,6 +178,8 @@ def build_parser() -> argparse.ArgumentParser:
     spec.add_argument("--target-device", type=int, default=1)
     spec.add_argument("--draft-device", type=int, default=0)
     spec.add_argument("--k", type=int, default=5)
+    spec.add_argument("--prompt-file", default=None)
+    spec.add_argument("--num-samples", type=int, default=1)
     add_common_generation_args(spec)
     spec.set_defaults(func=cmd_speculative)
 
@@ -184,6 +190,8 @@ def build_parser() -> argparse.ArgumentParser:
     scaling.add_argument("--target-device", type=int, default=1)
     scaling.add_argument("--draft-device", type=int, default=0)
     scaling.add_argument("--plot", default=None)
+    scaling.add_argument("--prompt-file", default=None)
+    scaling.add_argument("--num-samples", type=int, default=1)
     add_common_generation_args(scaling)
     scaling.set_defaults(func=cmd_scaling)
 

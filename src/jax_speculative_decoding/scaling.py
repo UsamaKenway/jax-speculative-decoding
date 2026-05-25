@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .hf_loader import load_qwen2_jax_params, load_tokenizer, select_jax_device
+from .jax_qwen import make_forward
 from .results import BenchmarkResult
-from .spec_runner import run_speculative_benchmark
+from .spec_runner import LoadedSpeculativeModels, run_speculative_benchmark_loaded
 
 
 def parse_csv_ints(value: str) -> list[int]:
@@ -25,21 +27,50 @@ def run_scaling_sweep(
     output_len: int,
     max_model_len: int,
     prompt: str | None = None,
+    prompt_file: str | None = None,
+    num_samples: int = 1,
 ) -> list[BenchmarkResult]:
+    import jax.numpy as jnp
+
     results: list[BenchmarkResult] = []
+    target_device = select_jax_device(target_device_index)
+    draft_device = select_jax_device(draft_device_index)
+    tokenizer = load_tokenizer(target_model_id)
+    target_config, target_params = load_qwen2_jax_params(
+        target_model_id, device=target_device, dtype=jnp.bfloat16
+    )
+    target_forward = make_forward(target_config)
+
     for draft_model_id in draft_model_ids:
+        draft_config, draft_params = load_qwen2_jax_params(
+            draft_model_id, device=draft_device, dtype=jnp.bfloat16
+        )
+        models = LoadedSpeculativeModels(
+            target_model_id=target_model_id,
+            draft_model_id=draft_model_id,
+            tokenizer=tokenizer,
+            target_device=target_device,
+            draft_device=draft_device,
+            target_config=target_config,
+            draft_config=draft_config,
+            target_params=target_params,
+            draft_params=draft_params,
+            target_forward=target_forward,
+            draft_forward=make_forward(draft_config),
+        )
         for k in ks:
-            result = run_speculative_benchmark(
-                target_model_id=target_model_id,
-                draft_model_id=draft_model_id,
-                target_device_index=target_device_index,
-                draft_device_index=draft_device_index,
+            result = run_speculative_benchmark_loaded(
+                models,
                 k=k,
                 input_len=input_len,
                 output_len=output_len,
                 max_model_len=max_model_len,
                 prompt=prompt,
+                prompt_file=prompt_file,
+                num_samples=num_samples,
             )
+            result.metadata["scaling_target_loaded_once"] = True
+            result.metadata["scaling_draft_reused_across_k"] = True
             results.append(result)
     return results
 
