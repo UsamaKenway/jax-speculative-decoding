@@ -1,0 +1,91 @@
+{
+  "acceptance_rate": null,
+  "accepted_draft_tokens": null,
+  "batch_size": 1,
+  "compile_s": 14.288864631998877,
+  "draft_compute_s": null,
+  "draft_model": null,
+  "elapsed_s": 19.347840882999662,
+  "k": null,
+  "metadata": {
+    "device": "cuda:1",
+    "jax_backend": "gpu",
+    "max_model_len": 2048,
+    "num_samples": 8,
+    "prompt_file": null,
+    "sample_stats": [
+      {
+        "elapsed_s": 2.4328669820006326,
+        "output_tokens": 128,
+        "prompt_preview": "Explain speculative decoding for transformer inference in practical terms.\nExplain speculative decoding for transformer ",
+        "prompt_tokens": 128,
+        "sample_index": 0,
+        "tokens_per_second": 52.612823038414156
+      },
+      {
+        "elapsed_s": 2.4154607339987706,
+        "output_tokens": 128,
+        "prompt_preview": "Write a concise benchmark plan for comparing GPU inference throughput.\nWrite a concise benchmark plan for comparing GPU ",
+        "prompt_tokens": 128,
+        "sample_index": 1,
+        "tokens_per_second": 52.9919605805793
+      },
+      {
+        "elapsed_s": 2.4148177830011264,
+        "output_tokens": 128,
+        "prompt_preview": "Summarize why memory bandwidth matters for autoregressive decoding.\nSummarize why memory bandwidth matters for autoregre",
+        "prompt_tokens": 128,
+        "sample_index": 2,
+        "tokens_per_second": 53.00606981654826
+      },
+      {
+        "elapsed_s": 2.4174443449992395,
+        "output_tokens": 128,
+        "prompt_preview": "Give three reasons same-family draft models can improve acceptance rate.\nGive three reasons same-family draft models can",
+        "prompt_tokens": 128,
+        "sample_index": 3,
+        "tokens_per_second": 52.948478530553416
+      },
+      {
+        "elapsed_s": 2.4149002819995076,
+        "output_tokens": 128,
+        "prompt_preview": "Translate this short note into a crisp engineering status update: the benchmark is compiling kernels, loading model weig",
+        "prompt_tokens": 128,
+        "sample_index": 4,
+        "tokens_per_second": 53.00425899740158
+      },
+      {
+        "elapsed_s": 2.414218420000907,
+        "output_tokens": 128,
+        "prompt_preview": "Compare greedy decoding and sampling for language model inference, focusing on latency and reproducibility.\nCompare gree",
+        "prompt_tokens": 128,
+        "sample_index": 5,
+        "tokens_per_second": 53.01922930401298
+      },
+      {
+        "elapsed_s": 2.415295206999872,
+        "output_tokens": 128,
+        "prompt_preview": "Draft a short interview answer about why PCIe is acceptable when two GPUs exchange only token IDs.\nDraft a short intervi",
+        "prompt_tokens": 128,
+        "sample_index": 6,
+        "tokens_per_second": 52.99559226923386
+      },
+      {
+        "elapsed_s": 2.422837129999607,
+        "output_tokens": 128,
+        "prompt_preview": "Explain how KV cache size changes with sequence length, batch size, number of layers, and attention head dimensions.\nExp",
+        "prompt_tokens": 128,
+        "sample_index": 7,
+        "tokens_per_second": 52.83062506146287
+      }
+    ]
+  },
+  "model": "Qwen/Qwen2.5-7B-Instruct",
+  "name": "jax_ar",
+  "output_tokens": 1024,
+  "pcie_transfer_s": null,
+  "prompt_tokens": 128,
+  "proposed_tokens": null,
+  "target_verify_s": null,
+  "tokens_per_second": 52.925802222187826
+}
