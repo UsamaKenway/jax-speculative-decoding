@@ -23,6 +23,8 @@ class BenchmarkResult:
     proposed_tokens: int | None = None
     accepted_draft_tokens: int | None = None
     pcie_transfer_s: float | None = None
+    draft_compute_s: float | None = None
+    target_verify_s: float | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:

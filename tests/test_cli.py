@@ -11,3 +11,18 @@ def test_speculative_defaults_parse():
     assert args.k == 3
     assert args.target_device == 1
     assert args.draft_device == 0
+
+
+def test_consistency_check_parses():
+    args = build_parser().parse_args(
+        ["consistency-check", "--k", "5", "--num-samples", "8", "--strict-throughput"]
+    )
+    assert args.command == "consistency-check"
+    assert args.k == 5
+    assert args.num_samples == 8
+    assert args.strict_throughput is True
+
+
+def test_scaling_speedup_plot_parses():
+    args = build_parser().parse_args(["scaling", "--speedup-plot", "results/speedup.png"])
+    assert args.speedup_plot == "results/speedup.png"

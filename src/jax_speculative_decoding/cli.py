@@ -1,10 +1,18 @@
 from __future__ import annotations
 
 import argparse
+import json
 import platform
+from pathlib import Path
 
 from .results import print_result, write_result
-from .scaling import maybe_plot_scaling, parse_csv_ints, parse_csv_strings, run_scaling_sweep
+from .scaling import (
+    maybe_plot_scaling,
+    maybe_plot_speedup,
+    parse_csv_ints,
+    parse_csv_strings,
+    run_scaling_sweep,
+)
 
 
 DEFAULT_TARGET = "Qwen/Qwen2.5-7B-Instruct"
@@ -86,6 +94,8 @@ def cmd_jax_ar(args: argparse.Namespace) -> int:
         batch_size=args.batch_size,
         max_model_len=args.max_model_len,
         prompt=args.prompt,
+        prompt_file=args.prompt_file,
+        num_samples=args.num_samples,
     )
     print_result(result)
     write_result(args.out, result)
@@ -130,8 +140,75 @@ def cmd_scaling(args: argparse.Namespace) -> int:
     for result in results:
         print_result(result)
     write_result(args.out, results)
-    maybe_plot_scaling(args.plot, results)
+    maybe_plot_scaling(args.plot, results, ar_baseline_tokens_per_second=args.ar_baseline_tok_s)
+    maybe_plot_speedup(args.speedup_plot, results, ar_baseline_tokens_per_second=args.ar_baseline_tok_s)
     return 0
+
+
+def cmd_consistency(args: argparse.Namespace) -> int:
+    from .scaling import run_scaling_sweep
+    from .spec_runner import run_speculative_benchmark
+
+    standalone = run_speculative_benchmark(
+        target_model_id=args.target_model,
+        draft_model_id=args.draft_model,
+        target_device_index=args.target_device,
+        draft_device_index=args.draft_device,
+        k=args.k,
+        input_len=args.input_len,
+        output_len=args.output_len,
+        max_model_len=args.max_model_len,
+        prompt=args.prompt,
+        prompt_file=args.prompt_file,
+        num_samples=args.num_samples,
+    )
+    scaling = run_scaling_sweep(
+        target_model_id=args.target_model,
+        draft_model_ids=[args.draft_model],
+        ks=[args.k],
+        target_device_index=args.target_device,
+        draft_device_index=args.draft_device,
+        input_len=args.input_len,
+        output_len=args.output_len,
+        max_model_len=args.max_model_len,
+        prompt=args.prompt,
+        prompt_file=args.prompt_file,
+        num_samples=args.num_samples,
+    )[0]
+    acceptance_delta = abs((standalone.acceptance_rate or 0.0) - (scaling.acceptance_rate or 0.0))
+    throughput_delta = abs(standalone.tokens_per_second - scaling.tokens_per_second)
+    throughput_rel_delta = throughput_delta / max(standalone.tokens_per_second, 1e-9)
+    matching_counts = (
+        standalone.output_tokens == scaling.output_tokens
+        and standalone.accepted_draft_tokens == scaling.accepted_draft_tokens
+        and standalone.proposed_tokens == scaling.proposed_tokens
+    )
+    acceptance_passed = acceptance_delta <= args.acceptance_tolerance
+    throughput_passed = throughput_rel_delta <= args.throughput_tolerance
+    data_integrity_passed = acceptance_passed and matching_counts
+    passed = data_integrity_passed and (throughput_passed or not args.strict_throughput)
+    payload = {
+        "passed": passed,
+        "data_integrity_passed": data_integrity_passed,
+        "acceptance_passed": acceptance_passed,
+        "matching_counts": matching_counts,
+        "throughput_passed": throughput_passed,
+        "throughput_warning": data_integrity_passed and not throughput_passed,
+        "strict_throughput": args.strict_throughput,
+        "acceptance_delta": acceptance_delta,
+        "throughput_delta": throughput_delta,
+        "throughput_relative_delta": throughput_rel_delta,
+        "acceptance_tolerance": args.acceptance_tolerance,
+        "throughput_tolerance": args.throughput_tolerance,
+        "standalone": standalone.to_dict(),
+        "scaling": scaling.to_dict(),
+    }
+    print(json.dumps(payload, indent=2, sort_keys=True))
+    if args.out:
+        out = Path(args.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    return 0 if passed else 1
 
 
 def add_common_generation_args(parser: argparse.ArgumentParser) -> None:
@@ -169,6 +246,8 @@ def build_parser() -> argparse.ArgumentParser:
     jax_ar.add_argument("--model", default=DEFAULT_TARGET)
     jax_ar.add_argument("--device", type=int, default=1)
     jax_ar.add_argument("--batch-size", type=int, default=1)
+    jax_ar.add_argument("--prompt-file", default=None)
+    jax_ar.add_argument("--num-samples", type=int, default=1)
     add_common_generation_args(jax_ar)
     jax_ar.set_defaults(func=cmd_jax_ar)
 
@@ -190,10 +269,26 @@ def build_parser() -> argparse.ArgumentParser:
     scaling.add_argument("--target-device", type=int, default=1)
     scaling.add_argument("--draft-device", type=int, default=0)
     scaling.add_argument("--plot", default=None)
+    scaling.add_argument("--speedup-plot", default=None)
+    scaling.add_argument("--ar-baseline-tok-s", type=float, default=None)
     scaling.add_argument("--prompt-file", default=None)
     scaling.add_argument("--num-samples", type=int, default=1)
     add_common_generation_args(scaling)
     scaling.set_defaults(func=cmd_scaling)
+
+    consistency = sub.add_parser("consistency-check", help="Compare standalone speculative against single-point scaling")
+    consistency.add_argument("--target-model", default=DEFAULT_TARGET)
+    consistency.add_argument("--draft-model", default=DEFAULT_DRAFT)
+    consistency.add_argument("--target-device", type=int, default=1)
+    consistency.add_argument("--draft-device", type=int, default=0)
+    consistency.add_argument("--k", type=int, default=5)
+    consistency.add_argument("--prompt-file", default=None)
+    consistency.add_argument("--num-samples", type=int, default=4)
+    consistency.add_argument("--acceptance-tolerance", type=float, default=0.0)
+    consistency.add_argument("--throughput-tolerance", type=float, default=0.05)
+    consistency.add_argument("--strict-throughput", action="store_true")
+    add_common_generation_args(consistency)
+    consistency.set_defaults(func=cmd_consistency)
 
     return parser
 

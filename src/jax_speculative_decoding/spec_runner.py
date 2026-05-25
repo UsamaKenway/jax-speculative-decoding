@@ -124,6 +124,9 @@ def run_speculative_benchmark_loaded(
     total_proposed = 0
     total_accepted = 0
     total_pcie_transfer_s = 0.0
+    total_draft_compute_s = 0.0
+    total_target_verify_s = 0.0
+    sample_stats = []
     first_prompt_tokens = 0
 
     for sample_idx, prompt_text in enumerate(prompt_texts):
@@ -167,58 +170,80 @@ def run_speculative_benchmark_loaded(
         )
         cache_index = prompt_tokens
         emitted = 0
+        sample_proposed = 0
+        sample_accepted = 0
         pcie_transfer_s = 0.0
+        draft_compute_s = 0.0
+        target_verify_s = 0.0
+        iterations = 0
 
         start = time.perf_counter()
         last_token = None
         while emitted < output_len:
+            iterations += 1
             remaining = output_len - emitted
             proposed_this_step = min(k, remaining)
             index_value = jnp.asarray(cache_index, dtype=jnp.int32)
+            draft_start = time.perf_counter()
             draft_tokens, _, draft_next_logits_after_k, draft_cache_after_k = draft_k(
                 models.draft_params, draft_next_logits, draft_cache, index_value
             )
+            block_until_ready((draft_tokens, draft_next_logits_after_k, draft_cache_after_k))
+            draft_compute_s += time.perf_counter() - draft_start
 
             transfer_start = time.perf_counter()
             draft_tokens_on_target = jax.device_put(draft_tokens, models.target_device)
             block_until_ready(draft_tokens_on_target)
             pcie_transfer_s += time.perf_counter() - transfer_start
 
+            target_start = time.perf_counter()
             accepted_count, target_tokens, target_next_logits_after_k, target_cache_after_k, _ = verify(
                 models.target_params, target_next_logits, target_cache, index_value, draft_tokens_on_target
             )
+            block_until_ready((accepted_count, target_tokens, target_next_logits_after_k, target_cache_after_k))
+            target_verify_s += time.perf_counter() - target_start
             accepted_count = int(jax.device_get(accepted_count))
             total_proposed += proposed_this_step
-            total_accepted += min(accepted_count, proposed_this_step)
+            sample_proposed += proposed_this_step
+            accepted_this_step = min(accepted_count, proposed_this_step)
+            total_accepted += accepted_this_step
+            sample_accepted += accepted_this_step
 
-            if accepted_count == k:
+            if accepted_count >= proposed_this_step:
                 target_cache = target_cache_after_k
                 draft_cache = draft_cache_after_k
                 target_next_logits = target_next_logits_after_k
                 draft_next_logits = draft_next_logits_after_k
-                cache_index += k
+                cache_index += proposed_this_step
                 emitted += proposed_this_step
                 last_token = draft_tokens[:, proposed_this_step - 1]
                 continue
 
             replacement = target_tokens[:, accepted_count : accepted_count + 1]
+            transfer_start = time.perf_counter()
             replacement_on_draft = jax.device_put(replacement, models.draft_device)
+            block_until_ready(replacement_on_draft)
+            pcie_transfer_s += time.perf_counter() - transfer_start
 
+            target_start = time.perf_counter()
             target_logits, target_cache = models.target_forward(
                 models.target_params,
                 replacement,
                 target_cache_after_k,
                 jnp.asarray(cache_index + accepted_count, dtype=jnp.int32),
             )
+            block_until_ready((target_logits, target_cache))
+            target_verify_s += time.perf_counter() - target_start
+
+            draft_start = time.perf_counter()
             draft_logits, draft_cache = models.draft_forward(
                 models.draft_params,
                 replacement_on_draft,
                 draft_cache_after_k,
                 jnp.asarray(cache_index + accepted_count, dtype=jnp.int32),
             )
-            target_logits, target_cache, draft_logits, draft_cache = block_until_ready(
-                (target_logits, target_cache, draft_logits, draft_cache)
-            )
+            block_until_ready((draft_logits, draft_cache))
+            draft_compute_s += time.perf_counter() - draft_start
             target_next_logits = target_logits[:, -1, :]
             draft_next_logits = draft_logits[:, -1, :]
             cache_index += accepted_count + 1
@@ -226,9 +251,29 @@ def run_speculative_benchmark_loaded(
             last_token = replacement[:, 0]
 
         block_until_ready((last_token, target_next_logits, draft_next_logits, target_cache, draft_cache))
-        total_elapsed_s += time.perf_counter() - start
+        sample_elapsed_s = time.perf_counter() - start
+        total_elapsed_s += sample_elapsed_s
         total_emitted += emitted
         total_pcie_transfer_s += pcie_transfer_s
+        total_draft_compute_s += draft_compute_s
+        total_target_verify_s += target_verify_s
+        sample_stats.append(
+            {
+                "sample_index": sample_idx,
+                "prompt_tokens": prompt_tokens,
+                "output_tokens": emitted,
+                "iterations": iterations,
+                "proposed_tokens": sample_proposed,
+                "accepted_draft_tokens": sample_accepted,
+                "acceptance_rate": (sample_accepted / sample_proposed) if sample_proposed else 0.0,
+                "elapsed_s": sample_elapsed_s,
+                "tokens_per_second": tokens_per_second(emitted, sample_elapsed_s),
+                "draft_compute_s": draft_compute_s,
+                "target_verify_s": target_verify_s,
+                "pcie_transfer_s": pcie_transfer_s,
+                "prompt_preview": prompt_text[:120],
+            }
+        )
 
     return BenchmarkResult(
         name="jax_speculative_greedy",
@@ -245,6 +290,8 @@ def run_speculative_benchmark_loaded(
         proposed_tokens=total_proposed,
         accepted_draft_tokens=total_accepted,
         pcie_transfer_s=total_pcie_transfer_s,
+        draft_compute_s=total_draft_compute_s,
+        target_verify_s=total_target_verify_s,
         metadata={
             "target_device": str(models.target_device),
             "draft_device": str(models.draft_device),
@@ -254,6 +301,7 @@ def run_speculative_benchmark_loaded(
             "prompt_file": prompt_file,
             "target_loaded_once": True,
             "draft_loaded_once": True,
+            "sample_stats": sample_stats,
         },
     )
 
