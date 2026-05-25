@@ -1,0 +1,26 @@
+{
+  "acceptance_rate": 0.7385826771653543,
+  "accepted_draft_tokens": 469,
+  "batch_size": 1,
+  "compile_s": 37.04067993300032,
+  "draft_model": "Qwen/Qwen2.5-0.5B-Instruct",
+  "elapsed_s": 16.989249306000602,
+  "k": 5,
+  "metadata": {
+    "acceptance": "greedy_prefix_match",
+    "draft_device": "cuda:0",
+    "draft_loaded_once": true,
+    "max_model_len": 2048,
+    "num_samples": 4,
+    "prompt_file": null,
+    "target_device": "cuda:1",
+    "target_loaded_once": true
+  },
+  "model": "Qwen/Qwen2.5-7B-Instruct",
+  "name": "jax_speculative_greedy",
+  "output_tokens": 512,
+  "pcie_transfer_s": 2.6112286760017014,
+  "prompt_tokens": 128,
+  "proposed_tokens": 635,
+  "tokens_per_second": 30.13670532335773
+}

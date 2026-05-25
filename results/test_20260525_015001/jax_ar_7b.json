@@ -1,0 +1,21 @@
+{
+  "acceptance_rate": null,
+  "accepted_draft_tokens": null,
+  "batch_size": 1,
+  "compile_s": 14.291079210000134,
+  "draft_model": null,
+  "elapsed_s": 2.5281743460000143,
+  "k": null,
+  "metadata": {
+    "device": "cuda:1",
+    "jax_backend": "gpu",
+    "max_model_len": 2048
+  },
+  "model": "Qwen/Qwen2.5-7B-Instruct",
+  "name": "jax_ar",
+  "output_tokens": 128,
+  "pcie_transfer_s": null,
+  "prompt_tokens": 128,
+  "proposed_tokens": null,
+  "tokens_per_second": 50.62941968480811
+}
